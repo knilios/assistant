@@ -1,0 +1,31 @@
+{
+  "name": "assistant",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "db:migrate": "npx prisma migrate dev",
+    "db:studio": "npx prisma studio",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@prisma/client": "^6.19.2",
+    "chalk": "^4.1.2",
+    "chromadb": "^3.3.0",
+    "discord.js": "^12.5.3",
+    "dotenv": "^17.3.1",
+    "node-cron": "^4.2.1",
+    "openai": "^4.0.0",
+    "uuid": "^13.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.11",
+    "prisma": "^6.19.2"
+  }
+}

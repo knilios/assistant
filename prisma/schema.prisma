@@ -1,0 +1,48 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Event {
+  id           Int      @id @default(autoincrement())
+  date         String
+  description  String
+  participants String?
+  context      String?
+  createdAt    DateTime @default(now())
+
+  @@index([date])
+}
+
+model Todo {
+  id        Int      @id @default(autoincrement())
+  task      String
+  dueDate   String?
+  completed Boolean  @default(false)
+  priority  String   @default("normal")
+  createdAt DateTime @default(now())
+
+  @@index([completed])
+}
+
+model Reminder {
+  id          Int      @id @default(autoincrement())
+  triggerTime String
+  message     String
+  recurring   String?
+  completed   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([triggerTime, completed])
+}
+
+model ProcessedMessage {
+  messageId      String   @id
+  processedAt    DateTime @default(now())
+  processingType String
+  storedIn       String?
+}
