@@ -1,4 +1,4 @@
-const { ChromaClient } = require('chromadb');
+const { ChromaClient, CloudClient } = require('chromadb');
 const OpenAI = require('openai');
 const config = require('../config/config');
 const logger = require('../utils/logger');
@@ -25,38 +25,87 @@ async function initializeVectorDB() {
     }
 
     // Initialize Chroma
-    const chromaConfig = {
-      path: config.vectorDB.path,
-    };
+    const chromaUrl = new URL(config.vectorDB.path);
     
-    // Add authentication if provided
-    if (config.vectorDB.apiKey) {
-      chromaConfig.auth = {
-        provider: 'token',
-        credentials: config.vectorDB.apiKey,
-      };
+    if (chromaUrl.protocol === 'https:' && chromaUrl.hostname === 'api.trychroma.com') {
+      // Use CloudClient for Chroma Cloud
+      logger.info(`Connecting to Chroma Cloud (tenant: ${config.vectorDB.tenant})`);
+      chromaClient = new CloudClient({
+        apiKey: config.vectorDB.apiKey,
+        tenant: config.vectorDB.tenant,
+        database: config.vectorDB.database || 'default_database',
+      });
+    } else if (chromaUrl.protocol === 'https:') {
+      // Generic cloud/hosted Chroma configuration
+      chromaClient = new ChromaClient({
+        host: chromaUrl.hostname,
+        port: chromaUrl.port || 443,
+        ssl: true,
+        headers: config.vectorDB.apiKey ? {
+          'Authorization': `Bearer ${config.vectorDB.apiKey}`,
+          'x-chroma-token': config.vectorDB.apiKey,
+        } : undefined,
+        tenant: config.vectorDB.tenant,
+        database: config.vectorDB.database,
+      });
+    } else {
+      // Local Chroma configuration
+      chromaClient = new ChromaClient({
+        path: config.vectorDB.path,
+      });
     }
-    
-    if (config.vectorDB.tenant) {
-      chromaConfig.tenant = config.vectorDB.tenant;
-    }
-    
-    chromaClient = new ChromaClient(chromaConfig);
 
     // Test connection
     const heartbeat = await chromaClient.heartbeat();
     logger.success('ChromaDB connection successful', heartbeat);
 
-    // Get or create collection
-    collection = await chromaClient.getOrCreateCollection({
-      name: config.vectorDB.collectionName,
-    });
+    // List available collections for debugging
+    try {
+      const collections = await chromaClient.listCollections();
+      logger.info(`Available collections: ${collections.map(c => c.name).join(', ') || 'none'}`);
+    } catch (listError) {
+      logger.warn('Could not list collections (this is normal for Chroma Cloud with limited API keys)');
+    }
+
+    // We handle embeddings ourselves with OpenAI, so don't specify embedding function
+    // Try to get existing collection first (cloud providers often require pre-creation)
+    logger.info(`Attempting to access collection: ${config.vectorDB.collectionName}`);
+    
+    try {
+      collection = await chromaClient.getCollection({
+        name: config.vectorDB.collectionName,
+      });
+      logger.success(`✓ Vector DB collection connected: ${config.vectorDB.collectionName}`);
+    } catch (getError) {
+      logger.error(`✗ Cannot access collection '${config.vectorDB.collectionName}':`, getError.message);
+      
+      // Provide specific guidance based on the error
+      if (getError.message && getError.message.includes('permission')) {
+        logger.warn('');
+        logger.warn('╔════════════════════════════════════════════════════════════════╗');
+        logger.warn('║  CHROMA CLOUD SETUP REQUIRED                                   ║');
+        logger.warn('╠════════════════════════════════════════════════════════════════╣');
+        logger.warn('║  1. Go to: https://app.trychroma.com                           ║');
+        logger.warn('║  2. Log in to your account                                     ║');
+        logger.warn(`║  3. Create a collection named: "${config.vectorDB.collectionName.padEnd(36)}" ║`);
+        logger.warn('║  4. Make sure your API key has access to this collection      ║');
+        logger.warn('╚════════════════════════════════════════════════════════════════╝');
+        logger.warn('');
+      }
+      
+      throw getError;
+    }
 
     logger.success(`Vector DB collection initialized: ${config.vectorDB.collectionName}`);
     return collection;
   } catch (error) {
     logger.error('Failed to initialize Vector DB:', error);
-    logger.warn('Make sure ChromaDB is running: docker run -d -p 8000:8000 chromadb/chroma');
+    if (error.message && error.message.includes('permission')) {
+      logger.warn('Permission error: You may need to create the collection in your ChromaDB cloud dashboard first.');
+      logger.warn(`Collection name: ${config.vectorDB.collectionName}`);
+    } else {
+      logger.warn('Make sure ChromaDB is running: docker run -d -p 8000:8000 chromadb/chroma');
+    }
     return null;
   }
 }

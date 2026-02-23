@@ -16,6 +16,7 @@ module.exports = {
     collectionName: process.env.CHROMA_COLLECTION || 'assistant_memories',
     apiKey: process.env.CHROMA_API_KEY,
     tenant: process.env.CHROMA_TENANT,
+    database: process.env.CHROMA_DATABASE || 'default_database',
   },
   
   memory: {
