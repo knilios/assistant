@@ -25,9 +25,23 @@ async function initializeVectorDB() {
     }
 
     // Initialize Chroma
-    chromaClient = new ChromaClient({
+    const chromaConfig = {
       path: config.vectorDB.path,
-    });
+    };
+    
+    // Add authentication if provided
+    if (config.vectorDB.apiKey) {
+      chromaConfig.auth = {
+        provider: 'token',
+        credentials: config.vectorDB.apiKey,
+      };
+    }
+    
+    if (config.vectorDB.tenant) {
+      chromaConfig.tenant = config.vectorDB.tenant;
+    }
+    
+    chromaClient = new ChromaClient(chromaConfig);
 
     // Test connection
     const heartbeat = await chromaClient.heartbeat();
